@@ -1,0 +1,144 @@
+% The layout of this document has been shamelessly stolen from the MIT licensed project:
+% https://github.com/davidwhogg/GaussianProductRefactor
+% by David W. Hogg, Adrian Price-Whelan, and Boris Leistedt
+
+\documentclass[10pt]{article}
+
+\usepackage{amsmath, bm, mathrsfs, amssymb}
+\usepackage[dvipsnames]{xcolor}
+\usepackage[hidelinks,
+            colorlinks=true,
+            linkcolor=NavyBlue,
+            citecolor=darkgray,
+            urlcolor=NavyBlue]{hyperref}
+\usepackage{pifont}
+\usepackage{graphicx}
+\usepackage{doi}
+
+\usepackage{natbib}
+\bibliographystyle{dfm_abbrvnat}
+\setcitestyle{round,citesep={,},aysep={}}
+
+% text stuhh
+\newcommand{\documentname}{\textsl{Note}}
+\newcommand{\sectionname}{Section}
+\newcommand{\equationname}{equation}
+\newcommand{\notename}{Note}
+\renewcommand{\tablename}{Table}
+\newcommand{\acronym}[1]{{\small{#1}}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\foreign}[1]{\textsl{#1}}
+\newcommand{\etal}{\foreign{et~al.}}
+
+% math stuhh
+\newcommand{\hquad}{~~}
+\newcommand{\given}{\,|\,}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\T}{^{\!\mathsf{T}\!}}
+\newcommand{\inv}{^{-1}}
+\newcommand{\scalar}[1]{#1}
+\renewcommand{\vector}[1]{\boldsymbol{#1}}
+\newcommand{\tensor}[1]{\mathbf{#1}}
+\renewcommand{\matrix}[1]{\mathsf{#1}}
+\newcommand{\normal}{\mathcal{N}\!\,}
+
+% variables
+\newcommand{\celerite}{\code{celerite}}
+
+% Journal keys - kill me now
+\newcommand{\aj}{Astron.\,J.}
+\newcommand{\apj}{Astrophys.\,J.} % Astrophysical Journal
+\newcommand{\apjs}{Astrophys.\,J.\,Supp.\,Ser.} % Astrophysical Journal Supplements
+
+% page layout stuff
+\setlength{\topmargin}{0.0in}
+\setlength{\headheight}{0.0in}
+\setlength{\headsep}{0.0in}
+\setlength{\parindent}{\baselineskip}
+\setlength{\textwidth}{4.3in}
+\setlength{\textheight}{2\textwidth}
+\raggedbottom\sloppy\sloppypar\frenchspacing
+
+% this might be crazy, but here's my number
+\setlength{\marginparsep}{0.15in}
+\setlength{\marginparwidth}{2.7in}
+\usepackage{marginfix} % necessary but possibly evil
+\newcounter{marginnote}
+\setcounter{marginnote}{0}
+\renewcommand{\footnote}[1]{\refstepcounter{marginnote}\textsuperscript{\themarginnote}\marginpar{\color{darkgray}\raggedright\footnotesize\textsuperscript{\themarginnote}#1}}
+\newcommand{\tfigurerule}{\rule{0pt}{1ex}\\ \rule{\marginparwidth}{0.5pt}\\ \rule{0pt}{0.25ex}}
+\newcommand{\bfigurerule}{\rule{0pt}{0.25ex}\\ \rule{\marginparwidth}{0.5pt}\\ \rule{0pt}{1ex}}
+\renewcommand{\caption}[1]{\parbox{\marginparwidth}{\footnotesize\refstepcounter{figure}\textbf{\figurename~\thefigure}: {#1}}}
+
+% and make the left margin correct
+\setlength{\oddsidemargin}{0.5\paperwidth}
+\addtolength{\oddsidemargin}{-1.0in}
+\addtolength{\oddsidemargin}{-0.5\textwidth}
+\addtolength{\oddsidemargin}{-0.5\marginparwidth}
+\addtolength{\oddsidemargin}{-0.5\marginparsep}
+
+\begin{document}
+
+\section*{An insane version of wobble + psoap + etc.}
+
+\noindent\textbf{Daniel Foreman-Mackey}\\
+{\footnotesize%
+\textsl{Center for Computational Astrophysics, Flatiron Institute, New York, NY, USA}%
+}
+
+\medskip\noindent\textbf{Megan Bedell}\\
+{\footnotesize%
+\textsl{Center for Computational Astrophysics, Flatiron Institute, New York, NY, USA}%
+}
+
+\medskip\noindent\textbf{et al.}\\
+{\footnotesize%
+\textsl{Affiliations}\\
+\textsl{More affiliations}%
+}
+
+\paragraph{Abstract:}
+
+It's wild.
+
+\section{The basics}
+
+\paragraph{PSOAP}
+
+From \citet{Czekala:2017}.
+The idea here was to model all the fluxes in the spectral time series as a sum of GP models where each kernel represented a different component of the system (stars, tellurics, etc.).
+The model is evaluated by shifting the wavelength of each component into its rest frame and then evaluating the kernel there.
+This is awesome: it's directly modeling the data (no interpolation) assuming only that the spectrum should be smooth.
+But, it's also slow (can't use celerite or similar) and (probably) restricted to additive components.
+
+\paragraph{wobble}
+
+From \citet{Bedell:2019}.
+Here, the model parameters are the flux values for each spectral component on a fine grid that is interpolated into the observed frame and optimized.
+Much more flexible (can easily incorporate any number of additive and multiplicative components) and demonstrated that these high-dimensional optimizations could work.
+But, the results are sensitive to grid sizes and regularization parameters, and it's not trivial to incorporate time variability in the spectral shape.
+
+\paragraph{The new thing}
+
+The idea here is to sort of combine these ideas into something that is both flexible and (hopefully!) tractable.
+The model parameters are now (like in wobble) the flux as a function of wavelength for each component, but instead of evaluated on a grid, these will be evaluated \emph{at the locations of the observations}.
+Therefore, we will have $N$ parameters for each data point (where $N$ is the number of spectral components), and the effective wavelength of each flux parameter will be a function of the RV offsets for each component at each time.
+This is mildly insane, but probably possible.
+Then, we will use a GP prior on the parameters to enforce a PSOAP-like smoothness constraint on each spectral component.
+Then, the model is evaluated as a sum and/or product of each spectral component, and optimized using some likelihood function (possibly including things like baseline normalization, etc.) in the observed space.
+
+This has the benefits of PSOAP: we don't need to choose a grid or regularization parameters.
+But it also has the flexibility of wobble (+ some!): we can support any number of spectral components with different observational properties.
+Since our flux parameters each have both a time and a rest frame wavelength associated with them, our GP prior can be a function of time and wavelength: enforcing smooth variability in both dimensions.
+And, I think I know how to build this model using celerite kernels, so we can probably be fast too!
+
+\paragraph{Open questions}
+
+Is a GP model actually a good model for the spectral dimension?
+Is there some way we could make it better?
+
+% Render the references
+\clearpage\raggedright
+\bibliography{refs}
+
+\end{document}
